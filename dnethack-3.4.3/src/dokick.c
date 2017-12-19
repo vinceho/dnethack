@@ -65,7 +65,7 @@ register boolean clumsy;
 		&& hates_iron(mdat)) {
 			ironmsg = TRUE; ironobj = TRUE;
 	}
-	if (uarmf && uarmf->cursed
+	if (uarmf && is_unholy(uarmf)
 		&& hates_unholy(mdat)) {
 			unholymsg = TRUE; unholyobj = TRUE;
 	}
@@ -556,7 +556,7 @@ xchar x, y;
 
 	if(martial()) range += rnd(3);
 
-	if (is_pool(x, y)) {
+	if (is_pool(x, y, TRUE)) {
 	    /* you're in the water too; significantly reduce range */
 	    range = range / 3 + 1;	/* {1,2}=>1, {3,4,5}=>2, {6,7,8}=>3 */
 	} else {
@@ -776,11 +776,20 @@ dokick()
 			break;
 		    case TT_WEB:
 		    case TT_BEARTRAP:
+		    case TT_LAVA:
 			You_cant("move your %s!", body_part(LEG));
 			break;
 		    default:
 			break;
 		}
+		no_kick = TRUE;
+	} else if (!rn2(2) && IS_PUDDLE(levl[u.ux][u.uy].typ) &&
+		    !Levitation && !Flying && !Wwalking &&
+			/* mud boots negate water resistance */
+			(!uarmf || strncmp(OBJ_DESCR(objects[uarmf->otyp]), "mud ", 4))
+	) {
+		pline_The("water at your %s hinders your ability to kick.",
+			makeplural(body_part(FOOT)));
 		no_kick = TRUE;
 	}
 
@@ -874,7 +883,7 @@ dokick()
 		unmap_object(x, y);
 		newsym(x, y);
 	}
-	if (is_pool(x, y) ^ !!u.uinwater) {
+	if ((is_pool(x, y, TRUE)) ^ !!u.uinwater) {
 		/* objects normally can't be removed from water by kicking */
 		You("splash some water around.");
 		return 1;
@@ -901,6 +910,7 @@ dokick()
 				 unless it also happens to be trapped */
 			(maploc->doormask & (D_LOCKED|D_TRAPPED)) == D_LOCKED ?
 			      "Your kick uncovers" : "You kick open");
+			wake_nearby_noisy();
 			exercise(A_DEX, TRUE);
 			if(maploc->doormask & D_TRAPPED) {
 			    maploc->doormask = D_NODOOR;
@@ -922,6 +932,7 @@ dokick()
 		    if(!Levitation && rn2(30) < avrg_attrib) {
 			pline("Crash!  You kick open a secret passage!");
 			exercise(A_DEX, TRUE);
+			wake_nearby_noisy();
 			maploc->typ = CORR;
 			if (Blind)
 			    feel_location(x,y);	/* we know it's gone */
@@ -944,6 +955,7 @@ dokick()
 			    pline("CRASH!  You destroy the throne.");
 			    newsym(x, y);
 			}
+			wake_nearby_noisy();
 			if(u.sealsActive&SEAL_DANTALION) unbind(SEAL_DANTALION,TRUE);
 			exercise(A_DEX, TRUE);
 			return(1);
@@ -996,7 +1008,7 @@ dokick()
 		    goto ouch;
 		if(IS_TREE(maploc->typ)) {
 		    struct obj *treefruit;
-			if(u.uz.dnum == tower_dnum || on_level(&medusa_level,&u.uz)){
+			if(u.uz.dnum == tower_dnum || Is_medusa_level(&u.uz)){
 			    if (rn2(3)) {
 					if ( !rn2(3) && !(mvitals[PM_CROW].mvflags & G_GONE && !In_quest(&u.uz)) )
 					    You_hear("flapping wings."); /* a warning */
@@ -1426,6 +1438,7 @@ dumb:
 		    exercise(A_STR, TRUE);
 		    maploc->doormask = D_BROKEN;
 		}
+		wake_nearby_noisy();
 		if (Blind)
 		    feel_location(x,y);		/* we know we broke it */
 		else

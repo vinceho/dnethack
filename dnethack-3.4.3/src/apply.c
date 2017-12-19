@@ -52,7 +52,8 @@ STATIC_DCL boolean FDECL(figurine_location_checks,
 STATIC_DCL boolean NDECL(uhave_graystone);
 STATIC_DCL void FDECL(add_class, (char *, CHAR_P));
 STATIC_DCL int FDECL(do_carve_obj, (struct obj *));
-STATIC_PTR int NDECL(pick_rune);
+STATIC_PTR int FDECL(pick_rune, (BOOLEAN_P));
+STATIC_DCL void FDECL(describe_rune, (int));
 STATIC_PTR char NDECL(pick_carvee);
 
 
@@ -162,7 +163,7 @@ do_present_ring(obj)
 					engrHere->halu_ward = obj->ohaluengr;
 					engrHere->complete_wards = engrHere->halu_ward ? 1 : get_num_wards_added(engrHere->ward_id,0);
 					engrHere->ward_type = obj->blessed ? BURN : obj->cursed ? DUST : ENGRAVE;
-					if( !(u.wardsknown & get_wardID(engrHere->ward_id)) ){
+					if( !(obj->ohaluengr) && !(u.wardsknown & get_wardID(engrHere->ward_id)) ){
 						You("have learned a new warding sign!");
 						u.wardsknown |= get_wardID(engrHere->ward_id);
 					}
@@ -592,7 +593,7 @@ struct obj *obj;
 	register struct monst *mtmp;
 
 	You(whistle_str, obj->cursed ? "shrill" : "high");
-	wake_nearby();
+	wake_nearby_noisy();
 	for(mtmp = fmon; mtmp; mtmp = mtmp->nmon) {
 	    if (!DEADMONSTER(mtmp)) {
 			if (mtmp->mtame && !mtmp->isminion)
@@ -1119,7 +1120,8 @@ boolean spiritseal;
 	} else {
 	    /* charged Bell of Opening */
 	    consume_obj_charge(obj, TRUE);
-
+		
+		
 	    if (u.uswallow) {
 		if (!obj->cursed)
 		    (void) openit();
@@ -1141,6 +1143,7 @@ boolean spiritseal;
 #ifdef	AMIGA
 		amii_speaker( obj, "aefeaefeaefeaefeaefe", AMII_LOUDER_VOLUME );
 #endif
+		if(spiritseal && !obj->cursed) u.rangBell = moves;
 		obj->age = moves;
 		learno = TRUE;
 		wakem = TRUE;
@@ -1178,7 +1181,7 @@ boolean spiritseal;
 	    makeknown(BELL_OF_OPENING);
 	    obj->known = 1;
 	}
-	if (wakem) wake_nearby();
+	if (wakem) wake_nearby_noisy();
 }
 
 STATIC_OVL void
@@ -1390,6 +1393,10 @@ struct obj *obj;
 {
 	char buf[BUFSZ];
 
+	if(obj->oartifact == ART_INFINITY_S_MIRRORED_ARC){
+		You("can't find an %s switch", litsaber(obj) ? "off" : "on");
+		return;
+	}
 	if(Underwater && obj->oartifact != ART_HOLY_MOONLIGHT_SWORD) {
 		pline("This is not a diving lamp.");
 		return;
@@ -2150,7 +2157,7 @@ long timeout;
 			    Sprintf(carriedby, "%s pack",
 				     s_suffix(a_monnam(mon)));
 			}
-			else if (is_pool(mon->mx, mon->my))
+			else if (is_pool(mon->mx, mon->my, FALSE))
 			    Strcpy(carriedby, "empty water");
 			else
 			    Strcpy(carriedby, "thin air");
@@ -2234,7 +2241,7 @@ struct obj **optr;
 	You("%s and it transforms.",
 	    (u.dx||u.dy) ? "set the figurine beside you" :
 	    (Weightless || Is_waterlevel(&u.uz) ||
-	     is_pool(cc.x, cc.y)) ?
+	     is_pool(cc.x, cc.y, TRUE)) ?
 		"release the figurine" :
 	    (u.dz < 0 ?
 		"toss the figurine into the air" :
@@ -2609,6 +2616,10 @@ struct obj *hypo;
 	struct obj *amp = getobj(tools, "inject");
 	int i, ii, nothing=0;
 	if(!amp) return 0;
+	if(amp->otyp != HYPOSPRAY_AMPULE){
+		You("can't inject that!");
+		return 0;
+	}
     if (!getdir((char *)0)) return 0;
 	if(u.dz < 0){
 		You("don't see a patient up there.");
@@ -2620,6 +2631,10 @@ struct obj *hypo;
 		struct monst *mtarg = m_at(u.ux+u.dx,u.uy+u.dy);
 		if(!mtarg){
 			You("don't find a patient there.");
+			return 1;
+		}
+		if(amp->spe <= 0){
+			pline("The ampule is empty!");
 			return 1;
 		}
 		if(!has_blood_mon(mtarg)){
@@ -2948,6 +2963,8 @@ struct obj *otmp;
 
 	if (nohands(youracedata))
 	    what = "without hands";
+	else if(!freehand())
+	    what = "without free hands";
 	else if (Stunned)
 	    what = "while stunned";
 	else if (u.uswallow)
@@ -2957,7 +2974,7 @@ struct obj *otmp;
 	    what = "underwater";
 	else if (Levitation)
 	    what = "while levitating";
-	else if (is_pool(u.ux, u.uy))
+	else if (is_pool(u.ux, u.uy, TRUE))
 	    what = "in water";
 	else if (is_lava(u.ux, u.uy))
 	    what = "in lava";
@@ -3090,9 +3107,7 @@ struct obj **optr;
     mtmp = m_at(rx, ry);
 	ttmp = t_at(rx, ry);
 
-	if (nohands(youracedata))
-	    what = "without hands";
-	else if (Stunned)
+	if (Stunned)
 	    what = "while stunned";
 	else if (u.uswallow)
 	    what = is_animal(u.ustuck->data) ? "while swallowed" :
@@ -3101,7 +3116,7 @@ struct obj **optr;
 	    what = "underwater";
 	else if (Levitation)
 	    what = "while levitating";
-	else if (is_pool(rx, ry))
+	else if (is_pool(rx, ry, TRUE))
 	    what = "in water";
 	else if (is_lava(rx, ry))
 	    what = "in lava";
@@ -3160,9 +3175,7 @@ struct obj *otmp;
 {
 	const char *what = (char *)0;
 
-	if (nohands(youracedata))
-	    what = "without hands";
-	else if (Stunned)
+	if (Stunned)
 	    what = "while stunned";
 	else if (u.uswallow)
 	    what = is_animal(u.ustuck->data) ? "while swallowed" :
@@ -3653,7 +3666,7 @@ use_grapple (obj)
 	    }
 	    /* FALL THROUGH */
 	case 3:	/* Surface */
-	    if (IS_AIR(levl[cc.x][cc.y].typ) || is_pool(cc.x, cc.y))
+	    if (IS_AIR(levl[cc.x][cc.y].typ) || is_pool(cc.x, cc.y, TRUE))
 		pline_The("hook slices through the %s.", surface(cc.x, cc.y));
 	    else {
 		You("are yanked toward the %s!", surface(cc.x, cc.y));
@@ -3698,8 +3711,8 @@ do_break_wand(obj)
 
     is_fragile = (!strcmp(OBJ_DESCR(objects[obj->otyp]), "balsa"));
 
-    if (nohands(youracedata)) {
-	You_cant("break %s without hands!", the_wand);
+    if (nolimbs(youracedata)) {
+	You_cant("break %s without limbs!", the_wand);
 	return 0;
     } else if (obj->oartifact || ACURR(A_STR) < (is_fragile ? 5 : 10)) {
 	You("don't have the strength to break %s!", the_wand);
@@ -4038,7 +4051,7 @@ struct obj *obj;
 	multi = 0;		/* moves consumed */
 	nomovemsg = (char *)0;	/* occupation end message */
 
-	rune = pick_rune();
+	rune = pick_rune(FALSE);
 	if(!rune) return 0;
 	carveelet = pick_carvee();
 	
@@ -4079,7 +4092,8 @@ struct obj *obj;
 }
 
 int
-pick_rune()
+pick_rune(describe)
+boolean describe;
 {
 	winid tmpwin;
 	int n, how;
@@ -4130,12 +4144,102 @@ pick_rune()
 			MENU_UNSELECTED);
 		incntlet = (incntlet != 'z') ? (incntlet+1) : 'A';
 	}
-	end_menu(tmpwin, "Choose stave:");
+
+	if (!describe){
+		// Describe a glyph
+		Sprintf(buf, "Describe a glyph instead");
+		any.a_int = -1;					/* must be non-zero */
+		add_menu(tmpwin, NO_GLYPH, &any,
+			'?', 0, ATR_NONE, buf,
+			MENU_UNSELECTED);
+	}
+	else {
+		Sprintf(buf, "Carve a glyph instead");
+		any.a_int = -1;					/* must be non-zero */
+		add_menu(tmpwin, NO_GLYPH, &any,
+			'!', 0, ATR_NONE, buf,
+			MENU_UNSELECTED);
+	}
+
+	end_menu(tmpwin, (describe) ? "Choose stave to describe:" : "Choose stave to carve:");
 
 	how = PICK_ONE;
 	n = select_menu(tmpwin, how, &selected);
 	destroy_nhwindow(tmpwin);
-	return ( n > 0 ) ? selected[0].item.a_int : 0;
+
+	if (n > 0 && selected[0].item.a_int == -1){
+		return pick_rune(!describe);
+	}
+
+	if (n > 0 && describe){
+		describe_rune(selected[0].item.a_int);
+		return pick_rune(describe);
+	}
+	if (n > 0 && !describe){
+		return selected[0].item.a_int;
+	}
+
+	return 0;
+}
+
+
+void
+describe_rune(floorID)
+int floorID;
+{
+	winid datawin;
+	char name[80];
+	char turns[80];
+	char warded[80];
+	char reinforce[80];
+	char secondary[80];
+
+	switch (floorID){
+	case TOUSTEFNA:
+		strcpy(name, " Toustefna stave");
+		strcpy(turns, " 3 turns");
+		strcpy(warded, " d, f");
+		strcpy(secondary, " None.");
+		break;
+	case DREPRUN:
+		strcpy(name, " Dreprun stave");
+		strcpy(turns, " 4 turns");
+		strcpy(warded, " q, u, bats, birds");
+		strcpy(secondary, " None.");
+		break;
+	case VEIOISTAFUR:
+		strcpy(name, " Veioistafur stave");
+		strcpy(turns, " 5 turns");
+		strcpy(warded, " ;");
+		strcpy(secondary, " Bonus d20 damage vs ; when carved onto wielded weapon.");
+		break;
+	case THJOFASTAFUR:
+		strcpy(name, " Thjofastafur stave");
+		strcpy(turns, " 2 turns");
+		strcpy(warded, " n, l");
+		strcpy(secondary, " Grants detection of nymphs and leprechauns while wielded.");
+		break;
+	default:
+		impossible("No such stave to carve: %d", floorID);
+		return;
+	}
+
+	datawin = create_nhwindow(NHW_TEXT);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, name);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Turns to carve:");
+	putstr(datawin, 0, turns);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Warded creatures:");
+	putstr(datawin, 0, warded);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Secondary effects:");
+	putstr(datawin, 0, secondary);
+	putstr(datawin, 0, "");
+	display_nhwindow(datawin, FALSE);
+	destroy_nhwindow(datawin);
+	return;
 }
 
 char
@@ -4359,7 +4463,7 @@ struct obj **optr;
 		You("build a clockwork and %s.",
 			(u.dx||u.dy) ? "set it beside you" :
 			(Weightless || Is_waterlevel(&u.uz) ||
-			 is_pool(cc.x, cc.y)) ?
+			 is_pool(cc.x, cc.y, TRUE)) ?
 			"release it" :
 			(u.dz < 0 ?
 			"toss it into the air" :

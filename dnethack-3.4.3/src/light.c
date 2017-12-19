@@ -153,13 +153,14 @@ do_light_sources(cs_rows)
 
 	/* minor optimization: don't bother with duplicate light sources */
 	/* at hero */
+	/* commented out because it causes weirdness when the player has both a lightsource and a darksource
 	if (ls->x == u.ux && ls->y == u.uy) {
 	    if (at_hero_range >= ls->range)
 		ls->flags &= ~LSF_SHOW;
 	    else
 		at_hero_range = ls->range;
 	}
-
+	*/
         /* Candle ranges need to be recomputed to allow altar
            effects */
 
@@ -667,9 +668,23 @@ obj_is_burning(obj)
     return (obj->lamplit &&
 		 (	obj->otyp == MAGIC_LAMP
 		 || ignitable(obj)
-		 ||	is_lightsaber(obj)
+		 ||	(is_lightsaber(obj) && obj->oartifact != ART_INFINITY_S_MIRRORED_ARC)
 		 ||	obj->oartifact == ART_HOLY_MOONLIGHT_SWORD
 		 ||	artifact_light(obj)));
+}
+
+boolean
+litsaber(obj)
+	struct obj *obj;
+{
+	if(obj->oartifact == ART_INFINITY_S_MIRRORED_ARC){
+		xchar x, y;
+		get_obj_location(obj, &x, &y, 0);
+		if(x == 0 && y == 0) return FALSE;
+		return !isdark(x, y);
+	} else {
+		return obj->lamplit;
+	}
 }
 
 /* copy the light source(s) attachted to src, and attach it/them to dest */

@@ -180,7 +180,7 @@ magic_map_background(x, y, show)
     if (!cansee(x,y) && !lev->waslit) {
 	/* Floor spaces are dark if unlit.  Corridors are dark if unlit. */
 	if (lev->typ == ROOM && glyph == cmap_to_glyph(S_litroom))
-	    glyph = cmap_to_glyph(S_stone);
+	    glyph = cmap_to_glyph(S_drkroom);
 	else if (lev->typ == CORR && glyph == cmap_to_glyph(S_litcorr))
 	    glyph = cmap_to_glyph(S_corr);
     }
@@ -308,7 +308,7 @@ unmap_object(x, y)
 	/* turn remembered dark room squares dark */
 	if (!lev->waslit && lev->glyph == cmap_to_glyph(S_litroom) &&
 							    lev->typ == ROOM)
-	    lev->glyph = cmap_to_glyph(S_stone);
+	    lev->glyph = cmap_to_glyph(S_drkroom);
     } else
 	levl[x][y].glyph = cmap_to_glyph(S_stone);	/* default val */
 }
@@ -422,16 +422,7 @@ display_monster(x, y, mon, sightflags, worm_tail)
     if (!mon_mimic || sensed) {
 	int num;
 
-	/* [ALI] Only use detected glyphs when monster wouldn't be
-	 * visible by any other means.
-	 */
-	if (sightflags == DETECTED) {
-	    if (worm_tail) num = mon->data == &mons[PM_HUNTING_HORROR] ?
-			detected_monnum_to_glyph(what_mon(PM_HUNTING_HORROR_TAIL)):
-			detected_monnum_to_glyph(what_mon(PM_LONG_WORM_TAIL));
-	    else
-		num = detected_mon_to_glyph(mon);
-	} else if (mon->mtame && !Hallucination) {
+	if (mon->mtame && !Hallucination) {
 	    if (worm_tail) num = mon->data == &mons[PM_HUNTING_HORROR] ?
 			petnum_to_glyph(PM_HUNTING_HORROR_TAIL):
 			petnum_to_glyph(PM_LONG_WORM_TAIL);
@@ -449,6 +440,15 @@ display_monster(x, y, mon, sightflags, worm_tail)
 			zombienum_to_glyph(PM_LONG_WORM_TAIL);
 	    else
 		num = zombie_to_glyph(mon);
+	/* [ALI] Only use detected glyphs when monster wouldn't be
+	 * visible by any other means.
+	 */
+	} else if (sightflags == DETECTED) {
+	    if (worm_tail) num = mon->data == &mons[PM_HUNTING_HORROR] ?
+			detected_monnum_to_glyph(what_mon(PM_HUNTING_HORROR_TAIL)):
+			detected_monnum_to_glyph(what_mon(PM_LONG_WORM_TAIL));
+	    else
+		num = detected_mon_to_glyph(mon);
 	} else {
 	    if (worm_tail) num = mon->data == &mons[PM_HUNTING_HORROR] ?
 			monnum_to_glyph(what_mon(PM_HUNTING_HORROR_TAIL)):
@@ -518,7 +518,7 @@ feel_location(x, y)
     if (glyph_is_invisible(levl[x][y].glyph) && m_at(x,y)) return;
 
     /* The hero can't feel non pool locations while under water. */
-    if (Underwater && !Is_waterlevel(&u.uz) && !is_pool(x,y))
+    if (Underwater && !Is_waterlevel(&u.uz) && !is_pool(x,y, TRUE))
 	return;
 
     /* Set the seen vector as if the hero had seen it.  It doesn't matter */
@@ -548,7 +548,7 @@ feel_location(x, y)
 	    map_object(boulder, 1);
 	} else if (IS_DOOR(lev->typ)) {
 	    map_background(x, y, 1);
-	} else if (IS_ROOM(lev->typ) || IS_POOL(lev->typ)) {
+	} else if (IS_ROOM(lev->typ) || IS_PUDDLE_OR_POOL(lev->typ)) {
 	    /*
 	     * An open room or water location.  Normally we wouldn't touch
 	     * this, but we have to get rid of remembered boulder symbols.
@@ -577,15 +577,14 @@ feel_location(x, y)
 		if (lev->typ != ROOM && lev->seenv) {
 		    map_background(x, y, 1);
 		} else {
-		    lev->glyph = lev->waslit ? cmap_to_glyph(S_litroom) :
-					       cmap_to_glyph(S_stone);
+		    lev->glyph = (!lev->waslit) ? cmap_to_glyph(S_drkroom) : cmap_to_glyph(S_litroom);
 		    show_glyph(x,y,lev->glyph);
 		}
 	    } else if ((lev->glyph >= cmap_to_glyph(S_stone) &&
-			lev->glyph < cmap_to_glyph(S_litroom)) ||
+			lev->glyph < cmap_to_glyph(S_drkroom)) ||
 		       glyph_is_invisible(levl[x][y].glyph)) {
-		lev->glyph = lev->waslit ? cmap_to_glyph(S_litroom) :
-					   cmap_to_glyph(S_stone);
+		lev->glyph = (!cansee(x,y) && !lev->waslit) ? cmap_to_glyph(S_drkroom) :
+					   cmap_to_glyph(S_litroom);
 		show_glyph(x,y,lev->glyph);
 	    }
 	} else {
@@ -625,7 +624,7 @@ feel_location(x, y)
 	/* Floor spaces are dark if unlit.  Corridors are dark if unlit. */
 	if (lev->typ == ROOM &&
 		    lev->glyph == cmap_to_glyph(S_litroom) && !lev->waslit)
-	    show_glyph(x,y, lev->glyph = cmap_to_glyph(S_stone));
+	    show_glyph(x,y, lev->glyph = cmap_to_glyph(S_drkroom));
 	else if (lev->typ == CORR &&
 		    lev->glyph == cmap_to_glyph(S_litcorr) && !lev->waslit)
 	    show_glyph(x,y, lev->glyph = cmap_to_glyph(S_corr));
@@ -646,7 +645,7 @@ echo_location(x, y)
     register struct monst *mon;
 	
     /* The hero can't feel non pool locations while under water. */
-    if (Underwater && !Is_waterlevel(&u.uz) && !is_pool(x,y))
+    if (Underwater && !Is_waterlevel(&u.uz) && !is_pool(x,y, TRUE))
 	return;
 
 	if (glyph_is_invisible(levl[x][y].glyph) && !(m_at(x,y))) {
@@ -686,7 +685,7 @@ echo_location(x, y)
 		/* Floor spaces are dark if unlit.  Corridors are dark if unlit. */
 		if (lev->typ == ROOM &&
 				lev->glyph == cmap_to_glyph(S_litroom) && !lev->waslit)
-			show_glyph(x,y, lev->glyph = cmap_to_glyph(S_stone));
+			show_glyph(x,y, lev->glyph = cmap_to_glyph(S_drkroom));
 		else if (lev->typ == CORR &&
 				lev->glyph == cmap_to_glyph(S_litcorr) && !lev->waslit)
 			show_glyph(x,y, lev->glyph = cmap_to_glyph(S_corr));
@@ -728,7 +727,7 @@ newsym(x,y)
     if (Underwater && !Is_waterlevel(&u.uz)) {
 	/* don't do anything unless (x,y) is an adjacent underwater position */
 	int dx, dy;
-	if (!is_pool(x,y)) return;
+	if (!is_pool(x,y, TRUE)) return;
 	dx = x - u.ux;	if (dx < 0) dx = -dx;
 	dy = y - u.uy;	if (dy < 0) dy = -dy;
 	if (dx > 1 || dy > 1) return;
@@ -749,8 +748,8 @@ newsym(x,y)
 	 * Perhaps ALL areas should revert to their "unlit" look when
 	 * out of sight.
 	 */
-	lev->waslit = (darksight(youracedata) || catsight(youracedata)) ? 0 : (lev->lit!=0);	/* remember lit condition */
-
+	/* lev->waslit = (darksight(youracedata) || catsight(youracedata)) ? 0 : (lev->lit!=0);	*/ /* remember lit condition */
+	lev->waslit = 0; /* hack? */
 	if (reg != NULL && ACCESSIBLE(lev->typ)) {
 	    show_region(reg,x,y);
 	    return;
@@ -842,7 +841,7 @@ newsym(x,y)
 	    if (lev->glyph == cmap_to_glyph(S_litcorr) && lev->typ == CORR)
 		show_glyph(x, y, lev->glyph = cmap_to_glyph(S_corr));
 	    else if (lev->glyph == cmap_to_glyph(S_litroom) && lev->typ == ROOM)
-		show_glyph(x, y, lev->glyph = cmap_to_glyph(S_stone));
+		show_glyph(x, y, lev->glyph = cmap_to_glyph(S_drkroom));
 	    else
 		goto show_mem;
 	} else {
@@ -1128,7 +1127,7 @@ under_water(mode)
     }
     for (x = u.ux-1; x <= u.ux+1; x++)
 	for (y = u.uy-1; y <= u.uy+1; y++)
-	    if (isok(x,y) && is_pool(x,y)) {
+	    if (isok(x,y) && is_pool(x,y, TRUE)) {
 		if (Blind && !(x == u.ux && y == u.uy))
 		    show_glyph(x,y,cmap_to_glyph(S_stone));
 		else	
@@ -1534,7 +1533,9 @@ back_to_glyph(x,y)
 	case STONE:
 	    idx = level.flags.arboreal ? S_tree : S_stone;
 	    break;
-	case ROOM:		idx = S_litroom;	  break;
+	case ROOM:
+	    idx = (!cansee(x,y) && !ptr->waslit) ? S_drkroom : S_litroom;
+	    break;
 	case CORR:
 	    idx = (ptr->waslit || flags.lit_corridor) ? S_litcorr : S_corr;
 	    break;
@@ -1583,6 +1584,8 @@ back_to_glyph(x,y)
 	case ICE:		idx = S_ice;      break;
 	case AIR:		idx = S_air;	  break;
 	case CLOUD:		idx = S_cloud;	  break;
+	case PUDDLE:		idx = S_puddle;	  break;
+	case FOG:		idx = S_fog;	  break;
 	case WATER:		idx = S_water;	  break;
 	case DBWALL:
 	    idx = (ptr->horizontal) ? S_hcdbridge : S_vcdbridge;
@@ -1592,11 +1595,11 @@ back_to_glyph(x,y)
 	    case DB_MOAT:  idx = S_pool; break;
 	    case DB_LAVA:  idx = S_lava; break;
 	    case DB_ICE:   idx = S_ice;  break;
-	    case DB_FLOOR: idx = S_litroom; break;
+	    case DB_FLOOR: idx = (!cansee(x,y) && !ptr->waslit) ? S_drkroom : S_litroom; break;
 	    default:
 		impossible("Strange db-under: %d",
 			   ptr->drawbridgemask & DB_UNDER);
-		idx = S_litroom; /* something is better than nothing */
+		idx = (!cansee(x,y) && !ptr->waslit) ? S_drkroom : S_litroom; /* something is better than nothing */
 		break;
 	    }
 	    break;
@@ -1605,7 +1608,7 @@ back_to_glyph(x,y)
 	    break;
 	default:
 	    impossible("back_to_glyph:  unknown level type [ = %d ]",ptr->typ);
-	    idx = S_litroom;
+	    idx = (!cansee(x,y) && !ptr->waslit) ? S_drkroom : S_litroom;
 	    break;
     }
 
@@ -1696,7 +1699,7 @@ static const char *type_names[MAX_TYPE] = {
 	"DEADTREE", "DOOR",		"CORR",		"ROOM",		"STAIRS",
 	"LADDER",	"FOUNTAIN",	"THRONE",	"SINK",
 	"ALTAR",	"ICE",		"DRAWBRIDGE_DOWN","AIR",
-	"CLOUD"
+	"CLOUD", "FOG", "PUDDLE"
 };
 
 

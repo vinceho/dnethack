@@ -9,6 +9,7 @@ STATIC_DCL void NDECL(maybe_wail);
 #endif /*OVL1*/
 STATIC_DCL int NDECL(moverock);
 STATIC_DCL int FDECL(still_chewing,(XCHAR_P,XCHAR_P));
+STATIC_DCL int FDECL(invocation_distmin,(int, int));
 #ifdef SINKS
 STATIC_DCL void NDECL(dosinkfall);
 #endif
@@ -574,6 +575,16 @@ xchar x, y;
 	return((boolean)(Invocation_lev(&u.uz) && x == inv_pos.x && y == inv_pos.y));
 }
 
+STATIC_OVL int
+invocation_distmin(x, y)
+xchar x, y;
+{
+	if(Invocation_lev(&u.uz))
+		return distmin(x, y, inv_pos.x, inv_pos.y);
+	else
+		return 1000;
+}
+
 #endif /* OVL1 */
 #ifdef OVL3
 
@@ -610,11 +621,11 @@ int mode;
 	    /* Eat the rock. */
 	    if (mode == DO_MOVE && still_chewing(x,y)) return FALSE;
 	} else if (flags.autodig && !flags.run && !flags.nopick &&
-		   ((uwep && (is_pick(uwep) || (is_lightsaber(uwep) && uwep->lamplit) || (uwep->otyp == SEISMIC_HAMMER))) ||
+		   ((uwep && (is_pick(uwep) || (is_lightsaber(uwep) && litsaber(uwep)) || (uwep->otyp == SEISMIC_HAMMER))) ||
 			(uarmg && is_pick(uarmg)))) {
 	/* MRKR: Automatic digging when wielding the appropriate tool */
 	    if (mode == DO_MOVE){
-			if(uwep && (is_pick(uwep) || (is_lightsaber(uwep) && uwep->lamplit) || (uwep->otyp == SEISMIC_HAMMER))) (void) use_pick_axe2(uwep);
+			if(uwep && (is_pick(uwep) || (is_lightsaber(uwep) && litsaber(uwep)) || (uwep->otyp == SEISMIC_HAMMER))) (void) use_pick_axe2(uwep);
 			else if(uarmg && is_pick(uarmg)) (void) use_pick_axe2(uarmg);
 		}
 	    return FALSE;
@@ -723,10 +734,10 @@ int mode;
 	struct trap* t = t_at(x, y);
 
 	if ((t && t->tseen) ||
-	    (!Levitation && !Flying &&
-	     !is_clinger(youracedata) &&
-	     (is_pool(x, y) || is_lava(x, y)) && levl[x][y].seenv))
-	    return FALSE;
+        (((!Levitation && !Flying &&
+         !is_clinger(youracedata)) || is_3dwater(x, y)) &&
+         (is_pool(x, y, TRUE) || is_lava(x, y)) && levl[x][y].seenv))
+        return FALSE;
     }
 
     ust = &levl[ux][uy];
@@ -1052,7 +1063,7 @@ domove()
 		if (((trap = t_at(x, y)) && trap->tseen) ||
 		    (Blind && !Levitation && !Flying &&
 		     !is_clinger(youracedata) &&
-		     (is_pool(x, y) || is_lava(x, y)) && levl[x][y].seenv)) {
+		     (is_pool(x, y, TRUE) || is_lava(x, y)) && levl[x][y].seenv)) {
 			if(flags.run >= 2) {
 				nomul(0, NULL);
 				flags.move = 0;
@@ -1181,7 +1192,7 @@ domove()
 		/* try to attack; note that it might evade */
 		/* also, we don't attack tame when _safepet_ */
 		else if(attack(mtmp)){
-			if(uwep && is_lightsaber(uwep) && uwep->lamplit && u.fightingForm == FFORM_ATARU && (!uarm || is_light_armor(uarm))){
+			if(uwep && is_lightsaber(uwep) && litsaber(uwep) && u.fightingForm == FFORM_ATARU && (!uarm || is_light_armor(uarm))){
 				coord cc;
 				if(!u.utrap && tt_findadjacent(&cc, mtmp) && (cc.x != u.ux || cc.y != u.uy)){
 					You("somersault to a new location!");
@@ -1203,7 +1214,7 @@ domove()
 		You("%s %s.",
 		    expl ? "explode at" : "attack",
 		    !Underwater ? "thin air" :
-		    is_pool(x,y) ? "empty water" : buf);
+		    is_pool(x,y, FALSE) ? "empty water" : buf);
 		// unmap_object(x, y); /* known empty -- remove 'I' if present */
 		if (glyph_is_invisible(levl[x][y].glyph)) {
 			unmap_object(x, y);
@@ -1260,11 +1271,11 @@ domove()
 					"crawl");
 				fill_pit(u.ux, u.uy);
 				vision_full_recalc = 1;	/* vision limits change */
-		    } else if(uwep && is_lightsaber(uwep) && uwep->lamplit){
+		    } else if(uwep && is_lightsaber(uwep) && litsaber(uwep)){
 				trap = t_at(u.ux,u.uy);
 				u.utrap = 0;
 				pline("The energy blade burns handholds in the side of the pit!");
-				if(is_lightsaber(uwep)) uwep->age -= 200;
+				if(is_lightsaber(uwep) && uwep->oartifact != ART_INFINITY_S_MIRRORED_ARC) uwep->age -= 200;
 				fill_pit(u.ux, u.uy);
 				vision_full_recalc = 1;	/* vision limits change */
 		    } else if (flags.verbose) {
@@ -1315,14 +1326,14 @@ domove()
 				u.utrap=0;
 		    } else if(uwep && 
 				(uwep->oartifact == ART_STING || uwep->oartifact == ART_LIECLEAVER || 
-					(is_lightsaber(uwep) && uwep->lamplit)
+					(is_lightsaber(uwep) && litsaber(uwep))
 				)
 			){
 				trap = t_at(u.ux,u.uy);
 				u.utrap = 0;
 				pline("%s through the web!", is_lightsaber(uwep) ? "The energy blade burns" : 
 									uwep->oartifact == ART_LIECLEAVER ? "Liecleaver cuts" : "Sting cuts");
-				if(is_lightsaber(uwep)) uwep->age -= 100;
+				if(is_lightsaber(uwep) && uwep->oartifact != ART_INFINITY_S_MIRRORED_ARC) uwep->age -= 100;
 				if(trap->ttyp == WEB){
 					if(!Is_lolth_level(&u.uz) && !(u.specialSealsActive&SEAL_BLACK_WEB)){
 						deltrap(trap);
@@ -1386,13 +1397,13 @@ domove()
 				u.utrap = 0;
 		    } else if(uwep && 
 				(uwep->oartifact == ART_STING || uwep->oartifact == ART_LIECLEAVER || 
-					(is_lightsaber(uwep) && uwep->lamplit)
+					(is_lightsaber(uwep) && litsaber(uwep))
 				)
 			){
 				trap = t_at(u.ux,u.uy);
 				u.utrap = 0;
 				pline("The energy blade burns through the bear trap!");
-				if(is_lightsaber(uwep)) uwep->age -= 100;
+				if(is_lightsaber(uwep) && uwep->oartifact != ART_INFINITY_S_MIRRORED_ARC) uwep->age -= 100;
 				if(trap->ttyp == BEAR_TRAP){
 					deltrap(trap);
 					newsym(u.ux,u.uy);
@@ -1593,7 +1604,7 @@ domove()
 	if (hides_under(youracedata))
 	    u.uundetected = OBJ_AT(u.ux, u.uy);
 	else if (youracedata->mlet == S_EEL)
-	    u.uundetected = is_pool(u.ux, u.uy) && !Is_waterlevel(&u.uz);
+	    u.uundetected = is_pool(u.ux, u.uy, FALSE) && !Is_waterlevel(&u.uz);
 	else if (u.dx || u.dy)
 	    u.uundetected = 0;
 
@@ -1682,9 +1693,22 @@ invocation_message()
 	    else Sprintf(buf, "under your %s", makeplural(body_part(FOOT)));
 
 	    You_feel("a strange vibration %s.", buf);
+		u.uevent.found_square = 1;
 	    if (otmp && otmp->spe == 7 && otmp->lamplit)
 		pline("%s %s!", The(xname(otmp)),
 		    Blind ? "throbs palpably" : "glows with a strange light");
+	} else if(!u.uevent.found_square && invocation_distmin(u.ux, u.uy) <= 2) {
+	    char buf[BUFSZ];
+	    nomul(0, NULL);		/* stop running or travelling */
+#ifdef STEED
+	    if (u.usteed) Sprintf(buf, "beneath %s", y_monnam(u.usteed));
+	    else
+#endif
+	    if (Levitation || Flying) Strcpy(buf, "beneath you");
+	    else Sprintf(buf, "under your %s", makeplural(body_part(FOOT)));
+
+	    if(invocation_distmin(u.ux, u.uy) == 2) You_feel("a slight vibration %s.", buf);
+	    else You_feel("a vibration %s.", buf);
 	}
 }
 
@@ -1700,7 +1724,7 @@ boolean pick;
 	if(u.uinwater) {
 		int was_underwater;
 
-		if (!is_pool(u.ux,u.uy)) {
+		if (!is_pool(u.ux,u.uy, FALSE)) {
 			if (Is_waterlevel(&u.uz))
 				You("pop into an air bubble.");
 			else if (is_lava(u.ux, u.uy))
@@ -1730,7 +1754,7 @@ boolean pick;
 stillinwater:;
 	if (((!Levitation && !Flying) || is_3dwater(u.ux, u.uy)) && !u.ustuck) {
 	    /* limit recursive calls through teleds() */
-	    if (is_pool(u.ux, u.uy) || is_lava(u.ux, u.uy)) {
+	    if (is_pool(u.ux, u.uy, FALSE) || is_lava(u.ux, u.uy)) {
 #ifdef STEED
 		if (u.usteed && !is_flyer(u.usteed->data) &&
 			!is_floater(u.usteed->data) &&
@@ -1746,6 +1770,32 @@ stillinwater:;
 		    if (lava_effects()) return;
 		} else if (!Wwalking && drown())
 		    return;
+	    } else if (IS_PUDDLE(levl[u.ux][u.uy].typ) && !Wwalking) {
+
+		/*You("%s through the shallow water.",
+		    verysmall(youmonst.data) ? "wade" : "splash");
+		if (!verysmall(youmonst.data) && !rn2(4)) wake_nearby();*/
+
+		if(u.umonnum == PM_GREMLIN)
+		    (void)split_mon(&youmonst, (struct monst *)0);
+		else if (u.umonnum == PM_IRON_GOLEM &&
+			/* mud boots keep the feet dry */
+			(!uarmf || strncmp(OBJ_DESCR(objects[uarmf->otyp]), "mud ", 4))) {
+		    int dam = rnd(6);
+		    Your("%s rust!", makeplural(body_part(FOOT)));
+		    if (u.mhmax > dam) u.mhmax -= dam;
+		    losehp(dam, "rusting away", KILLED_BY);
+		// } else if (is_longworm(youmonst.data)) { /* water is lethal to Shai-Hulud */
+		    // int dam = d(3,12);
+		    // if (u.mhmax > dam) u.mhmax -= (dam+1) / 2;
+	            // pline_The("water burns your flesh!");
+		    // losehp(dam,"contact with water",KILLED_BY);
+		}
+		if (verysmall(youmonst.data)) water_damage(invent, FALSE,FALSE,FALSE,FALSE);
+#ifdef STEED
+		if (!u.usteed)
+#endif
+			(void)rust_dmg(uarmf, "boots", 1, TRUE, &youmonst);
 	    }
 	}
 	check_special_room(FALSE);
@@ -2135,7 +2185,7 @@ dopickup()
 		return loot_mon(u.ustuck, &tmpcount, (boolean *)0);
 	    }
 	}
-	if(is_pool(u.ux, u.uy) && !is_3dwater(u.ux, u.uy)) {
+	if(is_pool(u.ux, u.uy, FALSE) && !is_3dwater(u.ux, u.uy) && !Is_waterlevel(&u.uz)) {//pools (bubble interior) on water level are special
 	    if (Wwalking || is_floater(youracedata) || is_clinger(youracedata)
 			|| (Flying && !Breathless)) {
 		You("cannot dive into the water to pick things up.");
@@ -2260,7 +2310,7 @@ bcorr:
 	    if(flags.run == 1) goto bcorr;	/* if you must */
 	    if(x == u.ux+u.dx && y == u.uy+u.dy) goto stop;
 	    continue;
-	} else if (is_pool(x,y) || is_lava(x,y)) {
+	} else if (is_pool(x,y, TRUE) || is_lava(x,y)) {
 	    /* water and lava only stop you if directly in front, and stop
 	     * you even if you are running
 	     */

@@ -353,7 +353,7 @@ boolean devour;
 	    newsym(x, y);
 	    newsym(mtmp->mx, mtmp->my);
 	}
-	if (is_pool(x, y) && !Underwater) {
+	if (is_pool(x, y, FALSE) && !Underwater) {
 	    /* Don't print obj */
 	    /* TODO: Reveal presence of sea monster (especially sharks) */
 	} else
@@ -805,6 +805,7 @@ register struct monst *mtmp;
 register struct monst *mtmp2;
 boolean ranged;
 {
+	if(mtmp2->moccupation) return FALSE;
     return !((!ranged &&
 #ifdef BARD
                 (int)mtmp2->m_lev >= (int)mtmp->m_lev+2 + (mtmp->encouraged)*2 &&
@@ -824,7 +825,7 @@ boolean ranged;
 		((   mtmp2->data == &mons[urole.guardnum]
 		  || mtmp2->data == &mons[urole.ldrnum]
 		  || (Role_if(PM_NOBLEMAN) && (mtmp->data == &mons[PM_KNIGHT] || mtmp->data == &mons[PM_MAID] || mtmp->data == &mons[PM_PEASANT]) && mtmp->mpeaceful)
-		  || (Race_if(PM_DROW) && (mtmp->data == &mons[PM_GROMPH] || mtmp->data == &mons[PM_DANTRAG]) && mtmp->mpeaceful)
+		  || (Race_if(PM_DROW) && is_drow(mtmp->data) && mtmp->mpeaceful)
 		  || (Role_if(PM_KNIGHT) && (mtmp->data == &mons[PM_KNIGHT]) && mtmp->mpeaceful)
 		  || (Race_if(PM_GNOME) && (is_gnome(mtmp->data) && !is_undead_mon(mtmp)) && mtmp->mpeaceful)
 		  || always_peaceful(mtmp2->data)) &&
@@ -1007,19 +1008,19 @@ register int after;	/* this is extra fast monster movement */
 	    if (ret == 2) return 1; /* did something */
 	}
 	else
-	if (( attacktype(mtmp->data, AT_BREA) ||
+	if (( (attacktype(mtmp->data, AT_BREA) && !mtmp->mcan) ||
 	      attacktype(mtmp->data, AT_BEAM) ||
-	      attacktype(mtmp->data, AT_GAZE) ||
+	      (attacktype(mtmp->data, AT_GAZE) && !mtmp->mcan) ||
 	      attacktype(mtmp->data, AT_SPIT) ||
 	      attacktype(mtmp->data, AT_ARRW) ||
 	      attacktype(mtmp->data, AT_LRCH) ||
 	      attacktype(mtmp->data, AT_LNCK) ||
 	      attacktype(mtmp->data, AT_5SQR) ||
 	      attacktype(mtmp->data, AT_TNKR) ||
-	     ( (attacktype(mtmp->data, AT_MAGC) &&
+	     ( (attacktype(mtmp->data, AT_MAGC) && !mtmp->mcan &&
 			(attacktype_fordmg(mtmp->data, AT_MAGC, AD_ANY))->adtyp <= AD_SPC2
 			) || 
-			(attacktype(mtmp->data, AT_MMGC) &&
+			(attacktype(mtmp->data, AT_MMGC) && !mtmp->mcan &&
 			(attacktype_fordmg(mtmp->data, AT_MMGC, AD_ANY))->adtyp <= AD_SPC2
 			)
 	      ) ||
@@ -1154,12 +1155,6 @@ register int after;	/* this is extra fast monster movement */
 		if (cursemsg[i] && !mtmp->mleashed && uncursedcnt > 0 &&
 		    rn2(13 * uncursedcnt)) continue;
 
-		/* lessen the chance of backtracking to previous position(s) */
-		k = has_edog ? uncursedcnt : cnt;
-		for (j = 0; j < MTSZ && j < k - 1; j++)
-			if (nx == mtmp->mtrack[j].x && ny == mtmp->mtrack[j].y)
-				if (rn2(MTSZ * (k - j))) goto nxti;
-
 		j = ((ndist = GDIST(nx,ny)) - nidist) * appr;
 		if ((j == 0 && !rn2(++chcnt)) || j < 0 ||
 			(j > 0 && !whappr &&
@@ -1273,7 +1268,7 @@ could_reach_item(mon, nx, ny)
 struct monst *mon;
 xchar nx, ny;
 {
-    if ((!is_pool(nx,ny) || is_swimmer(mon->data)) &&
+    if ((!is_pool(nx,ny, FALSE) || is_swimmer(mon->data)) &&
 	(!is_lava(nx,ny) || likes_lava(mon->data)) &&
 	(!boulder_at(nx,ny) || throws_rocks(mon->data)))
     	return TRUE;

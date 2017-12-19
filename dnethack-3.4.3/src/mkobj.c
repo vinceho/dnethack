@@ -578,8 +578,7 @@ boolean artif;
 					otmp->age = 20L * /* 400 or 200 */
 					      (long)objects[otmp->otyp].oc_cost;
 					otmp->lamplit = 0;
-					otmp->quan = 1L +
-					      (long)(rn2(2) ? rn2(7) : 0);
+					otmp->quan = 1L + ((long)(rn2(2) && !Is_grue_level(&u.uz)) ? rn2(7) : 0);
 					blessorcurse(otmp, 5);
 					break;
 		case BRASS_LANTERN:
@@ -1164,6 +1163,7 @@ start_corpse_timeout(body)
 
 	} else if (attchmon && attchmon->mfaction == ZOMBIFIED && !body->norevive) {
 //		pline("setting up zombie revival for %s", xname(body));
+		attchmon->mclone = 1;
 		for (age = 2; age <= TAINT_AGE; age++)
 		    if (!rn2(TROLL_REVIVE_CHANCE)) {	/* zombie revives */
 			action = REVIVE_MON;
@@ -1296,6 +1296,16 @@ register struct obj *otmp;
 	   with cursed alternate weapon */
 	if (otmp == uswapwep && u.twoweap)
 	    drop_uswapwep();
+	if (otmp == uarm && otmp->otyp == STRAITJACKET){
+		struct obj *o;
+		reset_remarm();
+		if(u.twoweap && uswapwep) drop_uswapwep();
+		if(uwep){
+			o = uwep;
+			setuwep((struct obj *)0);
+			dropx(o);
+		}
+	}
 	/* some cursed items need immediate updating */
 	if (carried(otmp) && confers_luck(otmp))
 	    set_moreluck();
@@ -1467,9 +1477,21 @@ int mat;
 		// break;
 		case ROCK:
 			if(mat == SILVER) obj->otyp = SILVER_SLINGSTONE;
+			if(mat == GLASS){
+				obj->otyp = LAST_GEM + rnd(9);
+			}
+			if(mat == GEMSTONE){
+				obj->otyp = MAGICITE_CRYSTAL + rn2(LAST_GEM - MAGICITE_CRYSTAL + 1);
+			}
 		break;
 		case SILVER_SLINGSTONE:
 			obj->otyp = ROCK;
+			if(mat == GLASS){
+				obj->otyp = LAST_GEM + rnd(9);
+			}
+			if(mat == GEMSTONE){
+				obj->otyp = MAGICITE_CRYSTAL + rn2(LAST_GEM - MAGICITE_CRYSTAL + 1);
+			}
 		break;
 		// case HEAVY_IRON_BALL:
 			// obj->otyp = ;
@@ -1539,6 +1561,13 @@ int mat;
 			if(!(obj->recharged)) obj->recharged = 1;
 			obj->obj_material = mat;
 		break;
+		case GEM_CLASS:
+			if(mat != GLASS && mat != GEMSTONE){
+				if(mat == SILVER) obj->otyp = SILVER_SLINGSTONE;
+				else obj->otyp = ROCK;
+			}
+			obj->obj_material = mat;
+		break;
 		default:
 			obj->obj_material = mat;
 		break;
@@ -1574,6 +1603,7 @@ register struct obj *obj;
 	else if(obj->oartifact == ART_ANNULUS) wt = objects[BELL_OF_OPENING].oc_weight;
 	else if(obj->oartifact == ART_SCEPTRE_OF_LOLTH) wt = 3*objects[MACE].oc_weight;
 	else if(obj->oartifact == ART_ROD_OF_THE_ELVISH_LORDS) wt = objects[ELVEN_MACE].oc_weight;
+	else if(obj->oartifact == ART_VAMPIRE_KILLER) wt = 2*objects[BULLWHIP].oc_weight;
 	else if(obj->oartifact == ART_EARTH_CRYSTAL){
 		wt = 160;
 	}
@@ -1593,9 +1623,8 @@ register struct obj *obj;
 		wt =  (int)(wt * 1.5); //225
 	} else if(obj->oartifact == ART_TREASURY_OF_PROTEUS){
 		wt =  50; /* Same as a crystal ball (ie, the Orb of Weight) */
-	}
-	
-	if(obj->obj_material != objects[obj->otyp].oc_material){
+	} else if(obj->obj_material != objects[obj->otyp].oc_material){
+	//ie, for normal objects and non-special weight artifacts
 	static const double matDensityLookup[] = {
 //	FENCEPOST
 		0.5,
@@ -1649,7 +1678,7 @@ register struct obj *obj;
 		wt = wt*matDensityLookup[obj->obj_material]/matDensityLookup[objects[obj->otyp].oc_material];
 	}
 	
-	if(obj->otyp == MOON_AXE){
+	if(obj->otyp == MOON_AXE && obj->oartifact != ART_SCEPTRE_OF_LOLTH){
 		if(obj->ovar1) wt =  wt/4*obj->ovar1;
 		else wt = wt/4;
 	}

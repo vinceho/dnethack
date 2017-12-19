@@ -758,7 +758,9 @@ register char *enterstring;
 		      shtypes[rt - SHOPBASE].name);
 	} else if (eshkp->robbed) {
 	    pline("%s mutters imprecations against shoplifters.", shkname(shkp));
-	} else if (eshkp->pbanned || seenSeals) {
+	} else if (eshkp->pbanned) {
+	    verbalize("I'll never sell to you.");
+	} else if (seenSeals) {
 	    verbalize("I don't sell to your kind.");
 	} else {
 		verbalize("%s, %s!  Welcome%s to %s %s!",
@@ -1588,7 +1590,11 @@ proceed:
 			makeketer(&mm);
 		}
 	}
-	if(eshkp->pbanned || seenSeals){
+	if(eshkp->pbanned){
+		pline("I'll never sell to you!");
+		return(0);
+	}
+	if(seenSeals){
 		pline("I don't sell to your kind!");
 		return(0);
 	}
@@ -1808,7 +1814,11 @@ shk_other_services()
 			makeketer(&mm);
 		}
 	}
-	if(ESHK(shkp)->pbanned || seenSeals){
+	if(ESHK(shkp)->pbanned){
+		pline("\"I'll never do business for you.\"");
+		return;
+	}
+	if(seenSeals){
 		pline("\"I don't do business for your kind.\"");
 		return;
 	}
@@ -2088,6 +2098,8 @@ int croaked;	/* -1: escaped dungeon; 0: quit; 1: died */
 	    numsk++;
 	    resident = mtmp;
 	    taken = inherits(resident, numsk, croaked);
+	    ESHK(mtmp)->pbanned = FALSE; /* Un-ban for bones levels */
+	    ESHK(mtmp)->signspotted = 0; /* seen no signs */
 	}
 	for (mtmp = next_shkp(fmon, FALSE);
 		mtmp; mtmp = next_shkp(mtmp2, FALSE)) {
@@ -5631,7 +5643,7 @@ struct monst *mon;
 		if(u.sealsActive&SEAL_EVE && !NoBInvis && !(uarmf && (uarm || uarmc))) count++;
 		// if(u.sealsActive&SEAL_FAFNIR);
 		// if(u.sealsActive&SEAL_HUGINN_MUNINN);
-		if(u.sealsActive&SEAL_IRIS && !NoBInvis && !((uarm && moves > u.irisAttack+5) || (uarmc && moves > u.irisAttack+1))) count++;
+		if(u.sealsActive&SEAL_IRIS && !NoBInvis && !(((uarm || uarmc) && moves > u.irisAttack+5) || (uarmc && moves > u.irisAttack+1))) count++;
 		if(u.sealsActive&SEAL_JACK && !NoBInvis && !uarmc) count++;
 		// if(u.sealsActive&SEAL_MALPHAS);
 		if(u.sealsActive&SEAL_MARIONETTE && !NoBInvis && !(uarm && is_metallic(uarm))) count++;
@@ -5683,7 +5695,7 @@ struct monst *mon;
 		// if(u.sealsActive&SEAL_EVE && !NoBInvis && !(uarmf && (uarm || uarmc))) count++;
 		if(u.sealsActive&SEAL_FAFNIR && !NoBInvis && !(uright || uarmg)) count++;
 		if(u.sealsActive&SEAL_HUGINN_MUNINN && !NoBInvis && !uarmh) count++;
-		// if(u.sealsActive&SEAL_IRIS && !NoBInvis && !((uarm && moves > u.irisAttack+5) || (uarmc && moves > u.irisAttack+1))) count++;
+		// if(u.sealsActive&SEAL_IRIS && !NoBInvis && !(((uarm || uarmc) && moves > u.irisAttack+5) || (uarmc && moves > u.irisAttack+1))) count++;
 		// if(u.sealsActive&SEAL_JACK && !NoBInvis && !uarmc) count++;
 		if(u.sealsActive&SEAL_MALPHAS && !NoBInvis && !(ublindf && (ublindf->otyp==MASK || ublindf->otyp==R_LYEHIAN_FACEPLATE))) count++;
 		// if(u.sealsActive&SEAL_MARIONETTE && !NoBInvis && !(uarm && is_metallic(uarm))) count++;

@@ -298,6 +298,8 @@ static const char *haluMesg[] = {
 	"Ash nazg durbatuluk, ash nazg gimbatul, ash nazg thrakatuluk, agh burzum-ishi krimpatul", /*the Lord of the Rings*/
 		"This thing all things devours.",
 		"Not all those who wander are lost.",
+		"But if of ships I now should sing, what ship would come for me?  What ship would bear me ever back across so wide a Sea?",
+		"Seven stars, and seven stones, and one white tree.",
 	"This is the curse of the Buddha-you will never again be the same as once you were.", /*Lord of Light*/
 		"Tricky and brilliant and heartfelt and dangerous.",
 		"Death is mighty, and is no one's friend.",
@@ -364,6 +366,7 @@ static const char *haluMesg[] = {
 		"Bee There Orr Bee A Rectangular Thyng",
 		"We're certainly dwarves",
 		"There is no doubt being human is incredibly difficult and cannot be mastered in one lifetime.",
+	"Now, here, you see, it takes all the running you can do, to keep in the same place.", /*Through the Looking-Glass */
 	"NOT A Secret Base", /*Gunnerkrigg Court*/
 	"We have the option to definitely die, but I've decided against it.", /*Schlock Mercenary*/
 	"Short to long term memory impaired. Go to Robotics Building. Explain about Bowman's architecture. Write down everything.", /*Freefall*/
@@ -400,8 +403,8 @@ static const char *haluMesg[] = {
 		"Another world awaits. ...And you're going!",
 		"You have seven days.",
 	"But the future refused to change.", /*Chrono Trigger*/
-	"WHEN ALL ELSE FAILS USE FIRE",
-	"Don't you see? All of you... YOUR GODS DESTROYED YOU",
+	"WHEN ALL ELSE FAILS USE FIRE", /*Zelda II*/
+	"Don't you see? All of you... YOUR GODS DESTROYED YOU", /*Wind Waker*/
 		"The wind... It is blowing...",
 	"I wonder... If you do the right thing... Does it really make... everybody... happy?",/*Majora's Mask*/
 		"Your friends... What kind of... people are they? I wonder... Do these people... think of you... as a friend?",
@@ -1221,7 +1224,7 @@ register int x, y;
 	    return "maw";
 	else if (IS_AIR(lev->typ) && Weightless)
 	    return "air";
-	else if (is_pool(x,y))
+	else if (is_pool(x,y, TRUE))
 	    return (Underwater && !Is_waterlevel(&u.uz)) ? "bottom" : "water";
 	else if (is_ice(x,y))
 	    return "ice";
@@ -1235,6 +1238,8 @@ register int x, y;
 	    return "headstone";
 	else if(IS_FOUNTAIN(levl[x][y].typ))
 	    return "fountain";
+	else if(IS_PUDDLE(levl[x][y].typ))
+	    return "muddy floor";
 	else if ((IS_ROOM(lev->typ) && !Is_earthlevel(&u.uz)) ||
 		 IS_WALL(lev->typ) || IS_DOOR(lev->typ) || lev->typ == SDOOR)
 	    return "floor";
@@ -1458,13 +1463,13 @@ register int x,y;
 	/* Sensing an engraving does not require sight,
 	 * nor does it necessarily imply comprehension (literacy).
 	 */
-	if(ep && ep->engr_txt[0] && (Underwater || !is_pool(x,y))) {
+	if(ep && ep->engr_txt[0] && (Underwater || !is_pool(x,y, FALSE))) {
 	    switch(ep->engr_type) {
 	    case DUST:
 		if(!Blind) {
 			sensed = 1;
 			pline("%s is written here in the %s.", Something,
-				is_ice(x,y) ? "frost" : "dust");
+				is_ice(x,y) ? "frost" : is_pool(x,y, TRUE) ? "mud" : "dust");
 		}
 		break;
 	    case ENGRAVE:
@@ -1751,8 +1756,9 @@ int x, y;
 int
 freehand()
 {
-	return(!uwep || !welded(uwep) ||
-	   (!bimanual(uwep,youracedata) && (!uarms || !uarms->cursed)));
+	return((!uarm || uarm->otyp != STRAITJACKET || !(uarm->cursed)) && 
+		(!uwep || !welded(uwep) ||
+	   (!bimanual(uwep,youracedata) && (!uarms || !uarms->cursed))));
 /*	if ((uwep && bimanual(uwep)) ||
 	    (uwep && uarms))
 		return(0);
@@ -1857,10 +1863,10 @@ doengrave()
 	} else if (is_lava(u.ux, u.uy)) {
 		You_cant("write on the lava!");
 		return(0);
-	} /*else if (is_pool(u.ux,u.uy) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
+	} /*else if (is_pool(u.ux,u.uy, FALSE) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
 		You_cant("draw on the water!");
 		return(0);
-	}*/else if(is_pool(u.ux,u.uy) && !u.uinwater){
+	}*/else if(is_pool(u.ux,u.uy, FALSE) && !u.uinwater){
 		You_cant("draw on the water!");
 		return(0);
 	}
@@ -2227,7 +2233,7 @@ doengrave()
 
 	    case TOOL_CLASS:
 		if (is_lightsaber(otmp)) {
-			if (otmp->lamplit) type = BURN;
+			if (litsaber(otmp)) type = BURN;
 			else Your("%s is deactivated!", aobjnam(otmp,"are"));
 		} else if(otmp == ublindf) {
 		    pline(
@@ -2543,7 +2549,7 @@ doengrave()
 		break;
 	    case BURN:
 			multi = -(len/10);
-			if(is_lightsaber(otmp)){
+			if(is_lightsaber(otmp) && otmp->oartifact != ART_INFINITY_S_MIRRORED_ARC){
 				maxelen = ((otmp->age/101) + 1)*10;
 				if (len > maxelen) {
 					multi = -(maxelen/10);
@@ -2666,10 +2672,10 @@ doward()
 	} else if (is_lava(u.ux, u.uy)) {
 		You_cant("draw on the lava!");
 		return(0);
-	} /*else if (is_pool(u.ux,u.uy) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
+	} /*else if (is_pool(u.ux,u.uy, FALSE) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
 		You_cant("draw on the water!");
 		return(0);
-	}*/else if(is_pool(u.ux,u.uy) && !u.uinwater){
+	}*/else if(is_pool(u.ux,u.uy, FALSE) && !u.uinwater){
 		You_cant("draw on the water!");
 		return(0);
 	}
@@ -3028,7 +3034,7 @@ doward()
 
 	    case TOOL_CLASS:
 		if (is_lightsaber(otmp)) {
-			if (otmp->lamplit) type = BURN;
+			if (litsaber(otmp)) type = BURN;
 			else Your("%s is deactivated!", aobjnam(otmp,"are"));
 		} else if(otmp == ublindf) {
 		    pline(
@@ -3283,7 +3289,7 @@ doward()
 
 	/* Prompt for engraving! */
 	if(!len){
-		ward = pick_ward();
+		ward = pick_ward(FALSE);
 		len = wardStrokes[ward][0];
 	}
 	if (ward == 0 || index(ebuf, '\033')) {
@@ -3346,7 +3352,7 @@ doward()
 		break;
 	    case BURN:
 			multi = -(len/10);
-			if(is_lightsaber(otmp)){
+			if(is_lightsaber(otmp) && otmp->oartifact != ART_INFINITY_S_MIRRORED_ARC){
 				maxelen = ((otmp->age/101) + 1)*10;
 				if (len > maxelen) {
 					multi = -(maxelen/10);
@@ -3514,7 +3520,8 @@ random_unknown_ward()
 }
 
 int
-pick_ward()
+pick_ward(describe)
+boolean describe;
 {
 	winid tmpwin;
 	int n, how;
@@ -3665,12 +3672,213 @@ pick_ward()
 			MENU_UNSELECTED);
 		incntlet = (incntlet != 'z') ? (incntlet+1) : 'A';
 	}
-	end_menu(tmpwin,	"Choose ward:");
+	if (!describe){
+		// Describe a ward
+		Sprintf(buf, "Describe a ward instead");
+		any.a_int = -1;					/* must be non-zero */
+		add_menu(tmpwin, NO_GLYPH, &any,
+			'?', 0, ATR_NONE, buf,
+			MENU_UNSELECTED);
+	}
+	else {
+		Sprintf(buf, "Draw a ward instead");
+		any.a_int = -1;					/* must be non-zero */
+		add_menu(tmpwin, NO_GLYPH, &any,
+			'!', 0, ATR_NONE, buf,
+			MENU_UNSELECTED);
+	}
+
+	end_menu(tmpwin,	(describe) ? "Choose ward to describe:" : "Choose ward to draw:");
 
 	how = PICK_ONE;
 	n = select_menu(tmpwin, how, &selected);
 	destroy_nhwindow(tmpwin);
-	return ( n > 0 ) ? selected[0].item.a_int : 0;
+
+	if (n > 0 && selected[0].item.a_int == -1){
+		return pick_ward(!describe);
+	}
+
+	if (n > 0 && describe){
+		describe_ward(selected[0].item.a_int);
+		return pick_ward(describe);
+	}
+	if (n > 0 && !describe){
+		return selected[0].item.a_int;
+	}
+
+	return 0;
+}
+
+void
+describe_ward(floorID)
+int floorID;
+{
+	winid datawin;
+	char name[80] = "";
+	char strokes[80] = "";
+	char warded[80] = "";
+	char warded2[80] = "";
+	char warded3[80] = "";
+	char reinforce[80] = "";
+	char secondary[80] = "";
+	char secondary2[80] = "";
+
+	switch (floorID){
+	case HEPTAGRAM: 
+		strcpy(name, " Heptagram");
+		strcpy(strokes, " 21");
+		strcpy(warded, " All except: A, o, dwarfs, G, @");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " None.");
+		break;
+	case GORGONEION:
+		strcpy(name, " Gorgoneion");
+		strcpy(strokes, " 60");
+		strcpy(warded, " All except: \' and A");
+		strcpy(reinforce, " 3-fold");
+		strcpy(secondary, " Has a 33% chance to scare for each reinforcement.");
+		break;
+	case CIRCLE_OF_ACHERON:
+		strcpy(name, " Circle of Acheron");
+		strcpy(strokes, " 2");
+		strcpy(warded, " All undead, Cerberus");
+		strcpy(reinforce, " 4-fold");
+		strcpy(secondary, " Protects against the `touch of death\' monster spell.");
+		break;
+	case PENTAGRAM:
+		strcpy(name, " Pentagram");
+		strcpy(strokes, " 10");
+		strcpy(warded, " i, E, K, &, hellhounds, gargoyles, sandestini");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " None.");
+		break;
+	case HEXAGRAM:
+		strcpy(name, " Hexagram");
+		strcpy(strokes, " 12");
+		strcpy(warded, " i, A, K, Q, \', &, hellhounds, eye of doom, son of Typhon");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " None.");
+		break;
+	case HAMSA:
+		strcpy(name, " Hamsa");
+		strcpy(strokes, " 10, but drawn in pairs after 2-fold reinforcement");
+		strcpy(warded, " floating eyes, beholders, autons");
+		strcpy(reinforce, " 6-fold");
+		strcpy(secondary, " Protects from all gaze attacks.");
+		strcpy(secondary2," Grants invisbility at maximum reinforcement.");
+		break;
+	case ELDER_SIGN:
+		strcpy(name, " Elder Sign");
+		strcpy(strokes, " 6, 12, 8, 8, 8, 8");
+		strcpy(warded, " 1-fold: b, j, m, p, w, l, P, U, ;, mind flayer");
+		strcpy(warded2,"         deep one, deeper one, byakhee, nightgaunt");
+		strcpy(warded3," 6-fold: deepest one, master mind flayer");
+		strcpy(reinforce, " 6-fold");
+		strcpy(secondary, " Wards against more monsters at maximum reinforcement.");
+		break;
+	case ELDER_ELEMENTAL_EYE:
+		strcpy(name, " Elder Elemental Eye");
+		strcpy(strokes, " 5");
+		strcpy(warded, " 1-fold: spheres, v, E, F, X");
+		strcpy(warded2," 4-fold: y, D, N, undead, metroids");
+		strcpy(warded3," 7-fold: A, K, i, &, autons");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " Wards against more monsters as it is reinforced.");
+		break;
+	case SIGN_OF_THE_SCION_QUEEN:
+		strcpy(name, " Sign of the Scion Queen Mother");
+		strcpy(strokes, " 8");
+		strcpy(warded, " a, s, x, R");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " None.");
+		break;
+	case CARTOUCHE_OF_THE_CAT_LORD:
+		strcpy(name, " Cartouche of the Cat Lord");
+		strcpy(strokes, " 7, 5, 6, 7, 5, 4, 7");
+		strcpy(warded, " birds, bats, r, s, S, ;, :");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " Pacifies f. 4-fold grants drain resistance. 7-fold grants sickness resistance.");
+		strcpy(secondary2," Stops working when all domestic cats are genocided or extinct.");
+		break;
+	case WINGS_OF_GARUDA:
+		strcpy(name, " The Wings of Garuda");
+		strcpy(strokes, " 10");
+		strcpy(warded, " c, r, N, S, :, kraken");
+		strcpy(reinforce, " 7-fold");
+		strcpy(secondary, " Reinforcement in 7 chance to resist poison.");
+		break;
+	case SIGIL_OF_CTHUGHA:
+		strcpy(name, " The Sigil of Cthugha");
+		strcpy(strokes, " 1");
+		strcpy(warded, " None.");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " The player is immune to fire while standing upon it.");
+		break;
+	case BRAND_OF_ITHAQUA:
+		strcpy(name, " The Brand of Ithaqua");
+		strcpy(strokes, " 1");
+		strcpy(warded, " None.");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " The player is immune to cold while standing upon it.");
+		break;
+	case TRACERY_OF_KARAKAL:
+		strcpy(name, " The Tracery of Karakal");
+		strcpy(strokes, " 1");
+		strcpy(warded, " None.");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " The player is immune to electricity while standing upon it.");
+		break;
+	case YELLOW_SIGN:
+		strcpy(name, " The Yellow Sign");
+		strcpy(strokes, " 4");
+		strcpy(warded, " 10% chance to frighten: humans, gnomes, dwarfs, elves, orcs");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " Any human, gnome, dwarf, elf, or orc that sees this becomes crazed.");
+		break;
+	case ANDREALPHUS_TRANSIT:
+		strcpy(name, " Hypergeometric transit solution");
+		strcpy(strokes, " ?");
+		strcpy(warded, " None.");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " The player can teleport at will when standing upon it.");
+		break;
+	case ANDREALPHUS_STABILIZE:
+		strcpy(name, " Hypergeometric stabilization solution");
+		strcpy(strokes, " ?");
+		strcpy(warded, " None.");
+		strcpy(reinforce, " None.");
+		strcpy(secondary, " The player can control their teleports when standing upon it.");
+		break;
+	default:
+		impossible("No such ward to draw: %d", floorID);
+		return;
+	}
+	
+	datawin = create_nhwindow(NHW_TEXT);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, name);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Strokes to draw:");
+	putstr(datawin, 0, strokes);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Warded creatures:");
+	putstr(datawin, 0, warded);
+	if(warded2[0] != 0)
+		putstr(datawin, 0, warded2);
+	if (warded3[0] != 0)
+		putstr(datawin, 0, warded3);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Maximum reinforcement:");
+	putstr(datawin, 0, reinforce);
+	putstr(datawin, 0, "");
+	putstr(datawin, 0, " Secondary effects:");
+	putstr(datawin, 0, secondary);
+	if (secondary2[0] != 0)
+		putstr(datawin, 0, secondary2);
+	putstr(datawin, 0, "");
+	display_nhwindow(datawin, FALSE);
+	destroy_nhwindow(datawin);
+	return;
 }
 
 int
@@ -3846,10 +4054,10 @@ doseal()
 	} else if (is_lava(u.ux, u.uy)) {
 		You_cant("draw on the lava!");
 		return(0);
-	} /*else if (is_pool(u.ux,u.uy) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
+	} /*else if (is_pool(u.ux,u.uy, FALSE) || IS_FOUNTAIN(levl[u.ux][u.uy].typ)) {
 		You_cant("draw on the water!");
 		return(0);
-	}*/else if(is_pool(u.ux,u.uy) && !u.uinwater){
+	}*/else if(is_pool(u.ux,u.uy, FALSE) && !u.uinwater){
 		You_cant("draw on the water!");
 		return(0);
 	}
@@ -4208,7 +4416,7 @@ doseal()
 
 	    case TOOL_CLASS:
 		if (is_lightsaber(otmp)) {
-			if (otmp->lamplit) type = BURN;
+			if (litsaber(otmp)) type = BURN;
 			else Your("%s is deactivated!", aobjnam(otmp,"are"));
 		} else if(otmp == ublindf) {
 		    pline(
@@ -4472,7 +4680,7 @@ doseal()
 		break;
 	    case BURN:
 			multi = -(len/10);
-			if(is_lightsaber(otmp)){
+			if(is_lightsaber(otmp) && otmp->oartifact != ART_INFINITY_S_MIRRORED_ARC){
 				maxelen = ((otmp->age/101) + 1)*10;
 				if (len > maxelen) {
 					multi = -(maxelen/10);
