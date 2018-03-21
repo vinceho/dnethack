@@ -1165,7 +1165,7 @@ start_corpse_timeout(body)
 //		pline("setting up zombie revival for %s", xname(body));
 		attchmon->mclone = 1;
 		for (age = 2; age <= TAINT_AGE; age++)
-		    if (!rn2(TROLL_REVIVE_CHANCE)) {	/* zombie revives */
+		    if (!rn2(HALF_MOLDY_CHANCE)) {	/* zombie revives */
 			action = REVIVE_MON;
 			when = age;
 			break;
@@ -1217,8 +1217,8 @@ start_corpse_timeout(body)
 				break;
 			}
 	}
-	chance = (flags.walky_level) ? FULL_MOLDY_CHANCE : 
-			 (attchmon && attchmon->zombify) ? TROLL_REVIVE_CHANCE : 
+	chance = (flags.walky_level) ? TROLL_REVIVE_CHANCE : 
+			 (attchmon && attchmon->zombify) ? FULL_MOLDY_CHANCE : 
 			 (Is_night_level(&u.uz)) ? HALF_MOLDY_CHANCE : 
 			 0;
 	if(action == ROT_CORPSE && chance){
@@ -2394,6 +2394,8 @@ maid_clean(mon, obj)
     struct monst *mon;
     struct obj *obj;
 {
+	if(objects[obj->otyp].oc_unique || obj->oartifact == ART_PEN_OF_THE_VOID)
+		return 0;
 	if(obj->oeroded){
 		if( d(1,20) < (int)is_rustprone(obj) ? (int)obj->oeroded : ((int)obj->oeroded) * 4){
 			if(canseemon(mon)) pline("The maid breaks the %s trash down for parts.", is_rustprone(obj) ? "rusted-out" : "burned-out");
